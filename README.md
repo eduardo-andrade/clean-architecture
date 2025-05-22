@@ -6,7 +6,7 @@ Este projeto é um serviço de pedidos (Order Service) desenvolvido em Go, que e
 ## Estrutura de Diretórios
 
 ```
-order-service/
+clean-architecture/
 ├── internal/
 │   ├── handler/         # Endpoints REST, GraphQL e gRPC
 │   ├── model/           # Modelos de dados
@@ -27,6 +27,8 @@ order-service/
 - Docker e Docker Compose
 - PostgreSQL (rodando localmente ou via container)
 - Ferramenta de migração [golang-migrate](https://github.com/golang-migrate/migrate)
+- Ferramenta para acessar gRPC via terminal [grpcurl](https://github.com/fullstorydev/grpcurl), ou
+- Ferramenta para acessar gRPC via web-interface [grpcui](https://github.com/fullstorydev/grpcui)
 
 ## Instalação
 
@@ -34,7 +36,7 @@ order-service/
 
 ```bash
 git clone <url-do-repositorio>
-cd order-service
+cd clean-architecture
 ```
 
 2. Baixe as dependências Go:
@@ -75,23 +77,57 @@ migrate -path migrations -database "postgres://user:password@localhost:5432/orde
 
 ## Testando o Projeto
 
-### REST
+### Verificar se o banco de dados foi criado
 
-- Endpoint: `GET http://localhost:8080/orders`
-- Use ferramentas como Postman ou curl:
+Dentro do container do Postgres:
 
 ```bash
-curl http://localhost:8080/orders
+docker exec -it clean-architecture-postgres-1 psql -U user -d orders
 ```
 
-### GraphQL
+Saída em caso de sucesso:
 
-- Playground: `http://localhost:8080`
-- Exemplo de query:
+```bash
+psql (15.13)
+Type "help" for help.
+orders=#
+```
+
+### Inserir dados para teste
+
+Ainda dentro do Postgres:
+
+```sql
+INSERT INTO orders (product_name, quantity, created_at) VALUES ('Notebook', 2, NOW());
+```
+
+### Testar API REST
+
+Endpoint disponível na porta `8080`.
+Teste via navegador acessando a url: [http://localhost:8080/order](http://localhost:8080/order)
+
+Ou via terminal com o comando "**curl**":
+
+```bash
+curl http://localhost:8080/order
+```
+
+Saída impressa:
+
+```bash
+[{"id":1,"product_name":"Produto A","quantity":5,"created_at":"2025-05-21T14:27:04.752741Z"},{"id":2,"product_name":"Produto B","quantity":10,"created_at":"2025-05-21T14:27:17.325009Z"}]
+```
+
+
+### Testar GraphQL
+
+GraphQL disponível na porta `8081`.
+Teste via navegador acessando a url: [http://localhost:8081](http://localhost:8081)
+Utilize a seguinte quwey para teste:
 
 ```graphql
 query {
-  listOrders {
+  orders {
     id
     productName
     quantity
@@ -100,35 +136,83 @@ query {
 }
 ```
 
-### gRPC
+Ou via terminal com o comando "**curl**":
 
-- Utilize ferramentas como [grpcurl](https://github.com/fullstorydev/grpcurl)
-- Endpoint: `localhost:50051`
-- Exemplo:
+```bash
+curl -X POST http://localhost:8081/graphql \
+  -H "Content-Type: application/json" \
+  -d '{"query":"query { orders { id productName quantity createdAt } }"}'
+```
+
+Repare que a saída será o conteúdo do arquivo html apresentando pelo GraphQL
+
+### Testar gRPC
+
+gRPC disponível na porta `50051`.
+
+Acessando com **grpcurl**:
+
+Entrada no terminal:
 
 ```bash
 grpcurl -plaintext localhost:50051 list
 ```
 
+Saída no terminal:
+
+```bash
+grpc.reflection.v1.ServerReflection
+grpc.reflection.v1alpha.ServerReflection
+order.OrderService
+```
+
+Entrada no terminal:
+
 ```bash
 grpcurl -plaintext localhost:50051 order.OrderService/ListOrders
 ```
 
-## Inserção Manual de Dados
-
-Você pode acessar o banco de dados PostgreSQL rodando via Docker:
+Saída no terminal:
 
 ```bash
-docker exec -it <container_id_postgres> psql -U user -d orders
+{
+  "orders": [
+    {
+      "id": 1,
+      "productName": "Produto A",
+      "quantity": 5,
+      "createdAt": "2025-05-21T14:27:04Z"
+    },
+    {
+      "id": 2,
+      "productName": "Produto B",
+      "quantity": 10,
+      "createdAt": "2025-05-21T14:27:17Z"
+    }
+  ]
+}
 ```
 
-Inserir exemplo:
+Acessando com **grpcui**:
 
-```sql
-INSERT INTO orders (product_name, quantity, created_at) VALUES ('Produto Teste', 10, NOW());
+Entrada no terminal:
+
+```bash
+grpcui -plaintext localhost:50051
 ```
+
+Será iniciado um servidor web local para acessar o serviço gRPC via navagador.
 
 ## Possíveis Erros e Soluções
+
+- **Erro de autenticação ao conectar no Postgres:**
+  Certifique-se de usar o usuário e senha corretos definidos no `docker-compose.yml`.
+
+- **gRPC não responde ou dá erro de reflexão:**
+  Verifique se a reflexão está habilitada no servidor gRPC (`reflection.Register(server)` foi chamado).
+
+- **Erro 404 ao acessar endpoints REST ou GraphQL:**
+  Certifique-se de que os containers estão rodando (`docker ps`) e que está acessando a porta correta.
 
 - **Erro: relation "orders" does not exist**  
   Solução: Certifique-se de que a migração foi executada com sucesso e que a tabela `orders` foi criada.
