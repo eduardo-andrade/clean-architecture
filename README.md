@@ -61,7 +61,9 @@ POSTGRES_DB=orders
 docker compose up --build
 ```
 
-Isso irá iniciar o banco de dados PostgreSQL e o serviço Go com suporte a REST, GraphQL e gRPC.
+Isso iniciará:
+- PostgreSQL na porta `5432`
+- Serviço Go (com REST na `8080`, GraphQL na `8081` e gRPC na `50051`)
 
 ## Migrações de Banco de Dados
 
